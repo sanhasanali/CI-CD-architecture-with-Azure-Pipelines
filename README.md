@@ -60,9 +60,9 @@ Proyek ini menunjukkan implementasi pipeline CI/CD menggunakan **Azure DevOps** 
 ---
 
 ## 🏁 Akses Aplikasi
+Cari bagian EXTERNAL-IP dari landing-page service.
 
 Setelah pipeline berhasil, aplikasi dapat diakses melalui:
 
 ```bash
 kubectl get svc -n default
-Cari bagian EXTERNAL-IP dari landing-page service.
