@@ -1,0 +1,13 @@
+# kubernetes/service.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: landing-page
+spec:
+  type: LoadBalancer
+  selector:
+    app: landing-page
+  ports:
+    - protocol: TCP
+      port: 80
+      targetPort: 80

@@ -1,0 +1,83 @@
+trigger:
+  branches:
+    include:
+      - master
+
+variables:
+  imageName: 'landing-page'
+  acrLoginServer: 'myacrlanding.azurecr.io'
+  kubernetesNamespace: 'default'
+
+stages:
+- stage: Build
+  displayName: 'Build and Push Docker Image'
+  jobs:
+  - job: Build
+    displayName: 'Build and Push Image to ACR'
+    pool:
+      name: default  # Pastikan ini adalah nama agent pool tempat self-hosted agent kamu berada
+    steps:
+    - checkout: self
+
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: 'conn-landing'  # Ganti dengan nama service connection kamu (sudah benar)
+        scriptType: 'bash'
+        scriptLocation: 'inlineScript'
+        inlineScript: |
+          echo "🔐 Login ke Azure Container Registry"
+          az acr login --name myacrlanding
+
+          echo "🐳 Build Docker Image"
+          docker build -t $(acrLoginServer)/$(imageName):$(Build.BuildId) .
+
+          echo "🚀 Push Docker Image ke ACR"
+          docker push $(acrLoginServer)/$(imageName):$(Build.BuildId)
+
+- stage: Deploy
+  displayName: 'Deploy to AKS'
+  dependsOn: Build
+  jobs:
+  - job: Deploy
+    displayName: 'Deploy to AKS via kubectl'
+    pool:
+      name: default  # Sama seperti di atas, harus cocok dengan agent pool kamu
+    steps:
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: 'conn-landing'
+        scriptType: 'bash'
+        scriptLocation: 'inlineScript'
+        inlineScript: |
+          echo "📦 Mengambil kubeconfig dari AKS"
+          az aks get-credentials --resource-group rs-group-landing --name myaks-landing --overwrite-existing
+
+          echo "📦 Update image pada deployment di Kubernetes"
+          kubectl set image deployment/landing-page landing-page=$(acrLoginServer)/$(imageName):$(Build.BuildId) -n $(kubernetesNamespace)
+
+          echo "📦 Deploy aplikasi ke AKS"
+          kubectl apply -f deployment.yaml
+          kubectl apply -f service.yaml
+
+          echo "✅ Deployment ke AKS selesai"
+
+- stage: Monitoring
+  displayName: 'Deploy Monitoring Stack'
+  jobs:
+  - job: DeployMonitoring
+    displayName: 'Deploy Prometheus & Grafana'
+    pool:
+      name: default
+    steps:
+    - task: AzureCLI@2
+      inputs:
+        azureSubscription: 'conn-landing'
+        scriptType: 'bash'
+        scriptLocation: 'inlineScript'
+        inlineScript: |
+          az aks get-credentials --resource-group rs-group-landing --name myaks-landing --overwrite-existing
+
+          echo "📡 Deploy Prometheus dan Grafana"
+          kubectl apply -f prometheus-deployment.yaml
+          kubectl apply -f grafana-deployment.yaml
+
